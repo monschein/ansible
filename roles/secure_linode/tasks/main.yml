@@ -1,0 +1,166 @@
+---
+# include vault vars
+- include_vars: linode.yml
+
+# tasks file for secure_linode
+- name: upgrade all packages (Debian)
+  apt: upgrade=dist
+       update_cache=yes
+  when: ansible_distribution == "Debian"
+
+- name: create dmonschein user (Debian)
+  user: name=dmonschein
+        comment="David Monschein"
+        shell=/bin/bash
+        group=users
+        groups=sudo
+        append=yes
+        password="{{ vault_dmonschein_passwd }}"
+  when: ansible_distribution == "Debian"
+
+- name: create dmonschein user (CentOS)
+  user: name=dmonschein
+        comment="David Monschein"
+        shell=/bin/bash
+        group=users
+        groups=wheel
+        append=yes
+        password="{{ vault_dmonschein_passwd }}"
+  when: ansible_distribution == "CentOS"
+
+- name: Set up authorized_keys for the dmonschein user
+  authorized_key: user=dmonschein
+                  key="{{ item }}"
+                  state=present
+  with_file:
+    - pubkeys/dmonschein_mbp.pub
+
+- name: set hostname
+  hostname: name={{ new_linode_hostname }}
+
+- name: set the timezone
+  shell: timedatectl set-timezone America/New_York
+
+- name: create bash_history folder for dmonschein user
+  file: path=/home/dmonschein/bash_history
+        owner=dmonschein
+        group=users
+        mode=0700
+        state=directory
+
+- name: stop and disable firewalld (CentOS)
+  service: name=firewalld
+           state=stopped
+           enabled=no
+  when: ansible_distribution == "CentOS"
+
+- name: install iptables (CentOS)
+  yum: name=iptables-services
+       state=latest
+  when: ansible_distribution == "CentOS"
+
+- name: start and enable iptables (CentOS)
+  service: name=iptables
+           state=started
+           enabled=yes
+  when: ansible_distribution == "CentOS"
+
+- name: install iptables (Debian)
+  apt: name=iptables
+       state=latest
+  when: ansible_distribution == "Debian"
+
+- name: copy over iptables template
+  copy: src=ipv4.iptables
+        dest=/tmp/ipv4.iptables
+        owner=root
+        group=root
+        mode=0644
+
+- name: import new iptables configuration
+  shell: /sbin/iptables-restore < /tmp/ipv4.iptables
+
+- name: save iptables configuration (CentOS)
+  shell: service iptables save
+  when: ansible_distribution == "CentOS"
+
+- name: prevent the iptables-peristent install dialog (Debian)
+  debconf: name=iptables-persistent question={{ item }} vtype=boolean value=true
+  with_items:
+    - iptables-persistent/autosave_v4
+    - iptables-persistent/autosave_v6
+  when: ansible_distribution == "Debian"
+
+- name: install iptables-persistent (Debian)
+  apt: name=iptables-persistent
+       state=latest
+  when: ansible_distribution == "Debian"
+
+- name: install EPEL repo (CentOS)
+  yum: name=epel-release
+       state=latest
+  when: ansible_distribution == "CentOS"
+
+- name: install misc packages
+  package: name={{ item }}
+           state=latest
+  with_items:
+    - tmux
+    - htop
+    - atop
+
+- name: install fail2ban
+  package: name=fail2ban
+           state=latest
+
+- name: push fail2ban local jail config
+  copy: src=fail2ban_debian-jail.local
+        dest=/etc/fail2ban/jail.local
+        owner=root
+        group=root
+        mode=0644
+
+- name: push fail2ban ssh filter config
+  copy: src=fail2ban_debian-sshd.conf
+        dest=/etc/fail2ban/filter.d/sshd.conf
+        owner=root
+        group=root
+        mode=0644
+
+- name: start fail2ban
+  service: name=fail2ban
+           state=restarted
+           enabled=yes
+
+- name: copy over dotfiles
+  copy: src={{ item }}
+        dest=/home/dmonschein/{{ item }}
+        owner=dmonschein
+        group=users
+        mode=0644
+  with_items:
+    - .bashrc
+    - .tmux.conf
+    - .screenrc
+    - .vimrc
+
+- name: unpack custom vim files
+  unarchive: src=vim-pack.tar.gz
+             dest=/home/dmonschein
+             copy=yes
+             owner=dmonschein
+
+- name: restrict password based ssh authentication
+  lineinfile: dest=/etc/ssh/sshd_config
+              regexp="^PasswordAuthentication"
+              line="PasswordAuthentication no"
+
+- name: disable root user login via ssh
+  lineinfile: dest=/etc/ssh/sshd_config
+              regexp="^PermitRootLogin"
+              line="PermitRootLogin no"
+
+- name: restart sshd
+  service: name=sshd
+           state=restarted
+           enabled=yes

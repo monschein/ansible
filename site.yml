@@ -1,0 +1,3 @@
+- hosts: linode
+  roles:
+    - cache_update

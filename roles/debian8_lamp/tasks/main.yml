@@ -1,0 +1,116 @@
+---
+# tasks file for debian8_lamp
+# followed https://www.linode.com/docs/websites/lamp/lamp-server-debian-8
+- name: install apache
+  apt: name=apache2
+       state=latest
+
+- name: disable KeepAlive
+  lineinfile: dest=/etc/apache2/apache2.conf
+              regexp="^KeepAlive On"
+              line="KeepAlive Off"
+              backup=yes
+
+- name: tune mpm_prefork.conf
+  template: src=mpm_prefork.conf.j2
+            dest=/etc/apache2/mods-available/mpm_prefork.conf
+            owner=root
+            group=root
+            mode=0644
+
+- name: disable mpm_event module
+  command: /usr/sbin/a2dismod mpm_event
+
+- name: enable mpm_prefork module
+  command: /usr/sbin/a2enmod mpm_prefork
+
+- name: restart apache2
+  service: name=apache2
+           state=restarted
+
+- name: create systemdave.com directory structure
+  file: path=/var/www/systemdave.com/{{ item }}
+        state=directory
+  with_items:
+    - public_html
+    - log
+    - backups
+
+- name: create systemdave.com vhost config file
+  template: src=systemdave.com.conf.j2
+            dest=/etc/apache2/sites-available/systemdave.com.conf
+
+- name: eanble systemdave.com
+  command: /usr/sbin/a2ensite systemdave.com.conf
+
+- name: restart apache2
+  service: name=apache2
+           state=restarted
+
+- name: Install MySQL & PHP
+  apt: name={{ item }}
+       state=latest
+  with_items:
+    - php5
+    - php-pear
+    - php5-mysql
+    - mysql-server
+    - python-mysqldb
+
+- name: generate new mysql root password
+  command: /usr/bin/openssl rand -base64 16
+  register: mysql_root_passwd
+
+- name: update mysql root password
+  mysql_user: name=root
+              host={{ item }}
+              password={{ mysql_root_passwd.stdout }}
+  with_items:
+    - "{{ ansible_hostname }}"
+    - 127.0.0.1
+    - ::1
+    - localhost
+
+- name: copy user my.cnf file with root passwd credentials
+  template: src=my.cnf.j2
+            dest=/root/.my.cnf
+            owner=root
+            group=root
+            mode=0600
+
+- name: delete anonymous mysql user
+  mysql_user: name=""
+              state=absent
+
+- name: remove mysql test database
+  mysql_db: name=test
+            state=absent
+
+- name: update mysql configuration with 1GB Linode Tunings
+  template: src=etc_my.cnf.j2
+            dest=/etc/mysql/my.cnf
+            mode=0644
+            owner=root
+            group=root
+            backup=yes
+
+- name: restart mysql
+  service: name=mysql
+           state=restarted
+
+- name: update php configuration with 1GB Linode Tunings
+  template: src=php.ini.j2
+            dest=/etc/php5/apache2/php.ini
+            mode=0644
+            owner=root
+            group=root
+            backup=yes
+
+- name: create php log directory
+  file: path=/var/log/php
+        state=directory
+        owner=www-data
+
+- name: restart apache2
+  service: name=apache2
+           state=restarted

@@ -1,0 +1,25 @@
+---
+# include vault vars
+- include_vars: linode.yml
+
+# tasks file for create_linode
+- name: spin up new linode via local action
+  linode:
+    api_key: "{{ vault_linode_api_key }}"
+    name: "{{ new_linode_label }}"
+    plan: 1
+    datacenter: 2
+    distribution: 140
+    password: "{{ vault_linode_hostpasswd }}"
+    swap: 256
+    wait: yes
+    wait_timeout: 600
+    state: present
+  delegate_to: 127.0.0.1
+  register: newlinode
+
+- name: add linode to inventory
+  add_host: name="{{ newlinode.instance.ipv4 }}" groups=new_linode
+
+- name: Wait for SSH to come up
+  local_action: wait_for host="{{ newlinode.instance.ipv4 }}" port=22 delay=60 timeout=320 state=started

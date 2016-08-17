@@ -1,0 +1,6 @@
+- hosts: linode
+  gather_facts: True
+  become: yes
+  become_method: sudo
+  roles:
+    - cache_update

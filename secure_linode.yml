@@ -1,0 +1,8 @@
+- hosts: new_linode
+  remote_user: root
+  vars_prompt:
+    - name: "new_linode_hostname"
+      prompt: "Please enter the desired hostname"
+      private: no
+  roles:
+    - secure_linode

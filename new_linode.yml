@@ -1,0 +1,23 @@
+# This playbook will create a Linode via the API and then secure it
+# The newly created Linode is inserted into the [new_linode] ansible_hosts group during the playbook run (create_linode role) 
+# Note: before running this playbok, make sure you have 'localhost' in ansible_hosts under [linode]
+# you may also need to add a dummy name into [new_linode] so it doesnt complain about having nothing there
+# Recommended method for running this playbook:
+# ansible-playbook -v -i 'localhost,$newlinodename,' new_linode.yml --user root --ask-pass --ask-vault-pass
+- hosts: localhost
+  connection: local
+  vars_prompt:
+    - name: "new_linode_label"
+      prompt: "Please enter label/name for new linode"
+      private: no
+  roles:
+    - create_linode
+
+- hosts: new_linode
+  remote_user: root
+  vars_prompt:
+    - name: "new_linode_hostname"
+      prompt: "Please enter the desired hostname (FQDN)"
+      private: no
+  roles:
+    - secure_linode
