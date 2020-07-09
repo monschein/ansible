@@ -6,7 +6,7 @@
 - name: upgrade all packages (Debian)
   apt: upgrade=dist
        update_cache=yes
-  when: ansible_distribution == "Debian"
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
 - name: create dmonschein user (Debian)
   user: name=dmonschein
@@ -16,7 +16,7 @@
         groups=sudo
         append=yes
         password="{{ vault_dmonschein_passwd }}"
-  when: ansible_distribution == "Debian"
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
 - name: create dmonschein user (CentOS)
   user: name=dmonschein
@@ -28,12 +28,12 @@
         password="{{ vault_dmonschein_passwd }}"
   when: ansible_distribution == "CentOS"
 
-- name: Set up authorized_keys for the dmonschein user
-  authorized_key: user=dmonschein
-                  key="{{ item }}"
-                  state=present
-  with_file:
-    - pubkeys/dmonschein_mbp.pub
+  #- name: Set up authorized_keys for the dmonschein user
+  #authorized_key: user=dmonschein
+  #                key="{{ item }}"
+  #                state=present
+  #with_file:
+  #  - pubkeys/dmonschein_mbp.pub
 
 - name: set hostname
   hostname: name={{ new_linode_hostname }}
@@ -68,7 +68,7 @@
 - name: install iptables (Debian)
   apt: name=iptables
        state=latest
-  when: ansible_distribution == "Debian"
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
 - name: copy over iptables template
   copy: src=ipv4.iptables
@@ -89,43 +89,88 @@
   with_items:
     - iptables-persistent/autosave_v4
     - iptables-persistent/autosave_v6
-  when: ansible_distribution == "Debian"
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
 - name: install iptables-persistent (Debian)
   apt: name=iptables-persistent
        state=latest
-  when: ansible_distribution == "Debian"
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
 - name: install EPEL repo (CentOS)
   yum: name=epel-release
        state=latest
   when: ansible_distribution == "CentOS"
 
-- name: install misc packages
-  package: name={{ item }}
-           state=latest
-  with_items:
+  #- name: install misc packages
+  #apt: name={{ item }}
+  #     state=latest
+  #with_items:
+  #  - tmux
+  #  - htop
+  #  - atop
+  #when: ansible_distribution == "Debian"
+
+- name: Install misc packages
+  apt:
+    name: "{{ packages }}"
+  vars:
+    packages:
     - tmux
     - htop
     - atop
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+  #- name: install misc packages
+  #yum: name={{ item }}
+  #     state=latest
+  #with_items:
+  #  - tmux
+  #  - htop
+  #  - atop
+  #when: ansible_distribution == "CentOS"
+
+- name: Install misc packages
+  yum:
+    name: "{{ packages }}"
+  vars:
+    packages:
+    - tmux
+    - htop
+    - atop
+  when: ansible_distribution == "CentOS"
+
+
+- name: touch /var/log/auth.log so CentOS wont complain
+  file: path=/var/log/auth.log
+        state=touch
+        mode="u=rw,g=r,o=r"
+  when: ansible_distribution == "CentOS"
 
 - name: install fail2ban
-  package: name=fail2ban
-           state=latest
+  apt: name=fail2ban
+       state=latest
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
-- name: push fail2ban local jail config
+- name: install fail2ban
+  yum: name=fail2ban
+       state=latest
+  when: ansible_distribution == "CentOS"
+
+- name: push fail2ban local jail config (Debian)
   copy: src=fail2ban_debian-jail.local
         dest=/etc/fail2ban/jail.local
         owner=root
         group=root
         mode=0644
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
-- name: push fail2ban ssh filter config
-  copy: src=fail2ban_debian-sshd.conf
-        dest=/etc/fail2ban/filter.d/sshd.conf
+- name: push fail2ban local jail config (CentOS)
+  copy: src=fail2ban_centos-jail.local
+        dest=/etc/fail2ban/jail.local
         owner=root
         group=root
         mode=0644
+  when: ansible_distribution == "CentOS"
 
 - name: start fail2ban
   service: name=fail2ban

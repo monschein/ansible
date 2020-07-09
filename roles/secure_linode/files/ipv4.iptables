@@ -16,15 +16,15 @@
 
 # Allow HTTP and HTTPS connections from anywhere
 # (the normal ports for web servers).
--A INPUT -p tcp --dport 80 -j ACCEPT
--A INPUT -p tcp --dport 443 -j ACCEPT
+#-A INPUT -p tcp --dport 80 -j ACCEPT
+#-A INPUT -p tcp --dport 443 -j ACCEPT
 
 # Allow DNS
 -A INPUT -i eth0 -p udp -m state --state ESTABLISHED --sport 53 -j ACCEPT
 
-# OPEN VPN Allow UDP traffic on port 119
--A INPUT -i eth0 -p udp -m state --state NEW,ESTABLISHED --dport 1194 -j ACCEPT
--A OUTPUT -o eth0 -p udp -m state --state ESTABLISHED --sport 1194 -j ACCEPT
+# OPEN VPN Allow UDP traffic on port 1194
+#-A INPUT -i eth0 -p udp -m state --state NEW,ESTABLISHED --dport 1194 -j ACCEPT
+#-A OUTPUT -o eth0 -p udp -m state --state ESTABLISHED --sport 1194 -j ACCEPT
 
 # OPEN VPN Allow traffic on the TUN interface.
 #-A INPUT -i tun0 -j ACCEPT
